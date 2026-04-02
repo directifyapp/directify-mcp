@@ -1,0 +1,31 @@
+{
+  "name": "directify-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for Directify - manage your directory websites through AI assistants like Claude.",
+  "main": "src/index.js",
+  "bin": {
+    "directify-mcp": "./src/index.js"
+  },
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "keywords": [
+    "directify",
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "ai",
+    "directory",
+    "listings",
+    "api"
+  ],
+  "author": "Directify",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
