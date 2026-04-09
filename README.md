@@ -6,6 +6,10 @@
 
 This MCP server lets AI assistants directly manage your Directify directories. Ask Claude to create listings, update categories, publish articles, and more - all through natural language.
 
+You can use it in two ways:
+- **Local** - Install the npm package and run it on your machine (see [Installation](#installation))
+- **Remote** - Use the hosted server with zero installation (see [Remote Server](#remote-server-no-installation-required))
+
 ## Installation
 
 ```bash
@@ -61,6 +65,52 @@ Add to `.cursor/mcp.json` in your project:
   }
 }
 ```
+
+## Remote Server (No Installation Required)
+
+If you prefer not to install anything locally, you can use the hosted remote MCP server. This works with any MCP client that supports remote servers via `mcp-remote`.
+
+### Claude Desktop (Remote)
+
+```json
+{
+  "mcpServers": {
+    "directify": {
+      "command": "npx",
+      "args": [
+        "-y", "mcp-remote",
+        "https://mcp.directify.app/mcp",
+        "--header", "Authorization:Bearer YOUR_API_TOKEN",
+        "--header", "X-Directory-ID:YOUR_DIRECTORY_ID"
+      ]
+    }
+  }
+}
+```
+
+### Cursor (Remote)
+
+Add to `.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "directify": {
+      "command": "npx",
+      "args": [
+        "-y", "mcp-remote",
+        "https://mcp.directify.app/mcp",
+        "--header", "Authorization:Bearer YOUR_API_TOKEN",
+        "--header", "X-Directory-ID:YOUR_DIRECTORY_ID"
+      ]
+    }
+  }
+}
+```
+
+The `X-Directory-ID` header is optional. If omitted, the AI will ask which directory to use (or you can call `list_directories` to discover them).
+
+---
 
 ## Configuration
 

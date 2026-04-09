@@ -593,6 +593,139 @@ export const toggleArticle = {
   },
 };
 
+// ─── Custom Pages ───
+
+export const listPages = {
+  name: 'list_pages',
+  description: 'List all custom pages in a directory. Custom pages are for static content like About, Terms, comparison pages, etc.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      directory_id: { type: 'string', description: 'Directory ID' },
+    },
+  },
+  handler: async ({ directory_id }) => {
+    const dir = resolveDirectory(directory_id);
+    const data = await api.get(`/directories/${dir}/pages`);
+    return data;
+  },
+};
+
+export const getPage = {
+  name: 'get_page',
+  description: 'Get full details of a specific custom page.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      directory_id: { type: 'string', description: 'Directory ID' },
+      page_id: { type: 'string', description: 'Page ID' },
+    },
+    required: ['page_id'],
+  },
+  handler: async ({ directory_id, page_id }) => {
+    const dir = resolveDirectory(directory_id);
+    const data = await api.get(`/directories/${dir}/pages/${page_id}`);
+    return data.data || data;
+  },
+};
+
+export const createPage = {
+  name: 'create_page',
+  description: 'Create a custom page. Great for programmatic SEO pages (comparisons, location pages), About, Terms, etc. Content is markdown.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      directory_id: { type: 'string', description: 'Directory ID' },
+      title: { type: 'string', description: 'Page title (required)' },
+      slug: { type: 'string', description: 'URL slug (auto-generated from title if not set)' },
+      markdown: { type: 'string', description: 'Page content in markdown' },
+      placement: { type: 'string', enum: ['navbar', 'footer', 'sidebar', 'unlisted'], description: 'Where the page link appears (default: unlisted)' },
+      is_published: { type: 'boolean', description: 'Published status (default: true)' },
+      order: { type: 'number', description: 'Sort order for navigation' },
+      seo_title: { type: 'string', description: 'SEO title' },
+      seo_description: { type: 'string', description: 'SEO meta description' },
+    },
+    required: ['title'],
+  },
+  handler: async ({ directory_id, seo_title, seo_description, ...body }) => {
+    const dir = resolveDirectory(directory_id);
+    if (seo_title || seo_description) {
+      body.seo = {};
+      if (seo_title) body.seo.title = seo_title;
+      if (seo_description) body.seo.description = seo_description;
+    }
+    const data = await api.post(`/directories/${dir}/pages`, body);
+    return data.data || data;
+  },
+};
+
+export const updatePage = {
+  name: 'update_page',
+  description: 'Update an existing custom page. Only pass fields you want to change.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      directory_id: { type: 'string', description: 'Directory ID' },
+      page_id: { type: 'string', description: 'Page ID to update' },
+      title: { type: 'string', description: 'Page title' },
+      slug: { type: 'string', description: 'URL slug' },
+      markdown: { type: 'string', description: 'Page content in markdown' },
+      placement: { type: 'string', enum: ['navbar', 'footer', 'sidebar', 'unlisted'], description: 'Where the page link appears' },
+      is_published: { type: 'boolean', description: 'Published status' },
+      order: { type: 'number', description: 'Sort order for navigation' },
+      seo_title: { type: 'string', description: 'SEO title' },
+      seo_description: { type: 'string', description: 'SEO meta description' },
+    },
+    required: ['page_id'],
+  },
+  handler: async ({ directory_id, page_id, seo_title, seo_description, ...body }) => {
+    const dir = resolveDirectory(directory_id);
+    if (seo_title || seo_description) {
+      body.seo = {};
+      if (seo_title) body.seo.title = seo_title;
+      if (seo_description) body.seo.description = seo_description;
+    }
+    const data = await api.put(`/directories/${dir}/pages/${page_id}`, body);
+    return data.data || data;
+  },
+};
+
+export const deletePage = {
+  name: 'delete_page',
+  description: 'Delete a custom page from a directory.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      directory_id: { type: 'string', description: 'Directory ID' },
+      page_id: { type: 'string', description: 'Page ID to delete' },
+    },
+    required: ['page_id'],
+  },
+  handler: async ({ directory_id, page_id }) => {
+    const dir = resolveDirectory(directory_id);
+    await api.delete(`/directories/${dir}/pages/${page_id}`);
+    return { success: true, message: `Page ${page_id} deleted.` };
+  },
+};
+
+export const togglePage = {
+  name: 'toggle_page',
+  description: 'Toggle a custom page between published and unpublished status.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      directory_id: { type: 'string', description: 'Directory ID' },
+      page_id: { type: 'string', description: 'Page ID to toggle' },
+    },
+    required: ['page_id'],
+  },
+  handler: async ({ directory_id, page_id }) => {
+    const dir = resolveDirectory(directory_id);
+    const data = await api.patch(`/directories/${dir}/pages/${page_id}/toggle`);
+    return data.data || data;
+  },
+};
+
 // ─── Export all tools ───
 
 export const allTools = [
@@ -621,4 +754,10 @@ export const allTools = [
   updateArticle,
   deleteArticle,
   toggleArticle,
+  listPages,
+  getPage,
+  createPage,
+  updatePage,
+  deletePage,
+  togglePage,
 ];
