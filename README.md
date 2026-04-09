@@ -187,6 +187,17 @@ Ask Claude: *"List my Directify directories"* - or find it in the URL when viewi
 | `delete_article` | Delete an article |
 | `toggle_article` | Toggle active/inactive status |
 
+### Custom Pages
+
+| Tool | Description |
+|------|-------------|
+| `list_pages` | List all custom pages |
+| `get_page` | Get page details |
+| `create_page` | Create a custom page (markdown content, placement, SEO) |
+| `update_page` | Update a page |
+| `delete_page` | Delete a page |
+| `toggle_page` | Toggle published/unpublished status |
+
 ## Example Conversations
 
 ### Create a listing
@@ -212,6 +223,18 @@ Claude will use `create_article` with markdown content.
 > **You:** Update all listings that don't have a description and add a short one based on their name and category.
 
 Claude will use `list_listings`, then `update_listing` for each one.
+
+### Create programmatic SEO pages
+
+> **You:** Create comparison pages for "NYC vs Chicago pizza", "NYC vs LA tacos", and "NYC vs Boston seafood" with SEO titles and descriptions.
+
+Claude will use `create_page` for each with markdown content, `unlisted` placement, and SEO metadata.
+
+### Manage custom pages
+
+> **You:** Add an About Us page to the navbar and a Terms of Service page to the footer.
+
+Claude will use `create_page` with `placement: "navbar"` and `placement: "footer"`.
 
 ## Rate Limits
 
