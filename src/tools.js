@@ -728,6 +728,115 @@ export const togglePage = {
   },
 };
 
+// ─── Organizers ───
+
+export const listOrganizers = {
+  name: 'list_organizers',
+  description: 'List all organizers in a directory, including their associated listings.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      directory_id: { type: 'string', description: 'Directory ID' },
+    },
+  },
+  handler: async ({ directory_id }) => {
+    const dir = resolveDirectory(directory_id);
+    const data = await api.get(`/directories/${dir}/organizers`);
+    return data.data || data;
+  },
+};
+
+export const getOrganizer = {
+  name: 'get_organizer',
+  description: 'Get details of a specific organizer, including their associated listings.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      directory_id: { type: 'string', description: 'Directory ID' },
+      organizer_id: { type: 'string', description: 'Organizer ID' },
+    },
+    required: ['organizer_id'],
+  },
+  handler: async ({ directory_id, organizer_id }) => {
+    const dir = resolveDirectory(directory_id);
+    const data = await api.get(`/directories/${dir}/organizers/${organizer_id}`);
+    return data.data || data;
+  },
+};
+
+export const createOrganizer = {
+  name: 'create_organizer',
+  description: 'Create a new organizer in a directory.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      directory_id: { type: 'string', description: 'Directory ID' },
+      name: { type: 'string', description: 'Organizer name (required)' },
+      slug: { type: 'string', description: 'URL slug (auto-generated from name if not provided)' },
+      description: { type: 'string', description: 'Description' },
+      email: { type: 'string', description: 'Contact email address' },
+      phone: { type: 'string', description: 'Contact phone number' },
+      website_url: { type: 'string', description: 'Website URL' },
+      social_links: { type: 'object', description: 'Social links as key-value pairs (e.g. {Twitter: "https://..."})' },
+      user_id: { type: 'number', description: 'User ID to assign as organizer owner (for submitter dashboard access)' },
+      is_active: { type: 'boolean', description: 'Active status (default: true)' },
+      order: { type: 'number', description: 'Sort order (default: 0)' },
+    },
+    required: ['name'],
+  },
+  handler: async ({ directory_id, ...body }) => {
+    const dir = resolveDirectory(directory_id);
+    const data = await api.post(`/directories/${dir}/organizers`, body);
+    return data.data || data;
+  },
+};
+
+export const updateOrganizer = {
+  name: 'update_organizer',
+  description: 'Update an existing organizer.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      directory_id: { type: 'string', description: 'Directory ID' },
+      organizer_id: { type: 'string', description: 'Organizer ID to update' },
+      name: { type: 'string', description: 'Organizer name' },
+      slug: { type: 'string', description: 'URL slug' },
+      description: { type: 'string', description: 'Description' },
+      email: { type: 'string', description: 'Contact email address' },
+      phone: { type: 'string', description: 'Contact phone number' },
+      website_url: { type: 'string', description: 'Website URL' },
+      social_links: { type: 'object', description: 'Social links as key-value pairs' },
+      user_id: { type: 'number', description: 'User ID to assign as organizer owner' },
+      is_active: { type: 'boolean', description: 'Active status' },
+      order: { type: 'number', description: 'Sort order' },
+    },
+    required: ['organizer_id'],
+  },
+  handler: async ({ directory_id, organizer_id, ...body }) => {
+    const dir = resolveDirectory(directory_id);
+    const data = await api.put(`/directories/${dir}/organizers/${organizer_id}`, body);
+    return data.data || data;
+  },
+};
+
+export const deleteOrganizer = {
+  name: 'delete_organizer',
+  description: 'Delete an organizer from a directory.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      directory_id: { type: 'string', description: 'Directory ID' },
+      organizer_id: { type: 'string', description: 'Organizer ID to delete' },
+    },
+    required: ['organizer_id'],
+  },
+  handler: async ({ directory_id, organizer_id }) => {
+    const dir = resolveDirectory(directory_id);
+    await api.delete(`/directories/${dir}/organizers/${organizer_id}`);
+    return { success: true, message: `Organizer ${organizer_id} deleted.` };
+  },
+};
+
 // ─── Export all tools ───
 
 export const allTools = [
@@ -762,4 +871,9 @@ export const allTools = [
   updatePage,
   deletePage,
   togglePage,
+  listOrganizers,
+  getOrganizer,
+  createOrganizer,
+  updateOrganizer,
+  deleteOrganizer,
 ];
