@@ -242,6 +242,116 @@ export const listCustomFields = {
   },
 };
 
+const CUSTOM_FIELD_TYPES = [
+  'text', 'number', 'date', 'file_upload', 'url', 'email', 'rich_editor',
+  'markdown', 'textarea', 'checkbox', 'rating', 'select', 'list',
+  'multi_select', 'button', 'javascript', 'html',
+];
+
+export const getCustomField = {
+  name: 'get_custom_field',
+  description: 'Get the definition of a specific custom field.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      directory_id: { type: 'string', description: 'Directory ID' },
+      custom_field_id: { type: 'string', description: 'Custom field ID' },
+    },
+    required: ['custom_field_id'],
+  },
+  handler: async ({ directory_id, custom_field_id }) => {
+    const dir = resolveDirectory(directory_id);
+    const data = await api.get(`/directories/${dir}/custom-fields/${custom_field_id}`);
+    return data.data || data;
+  },
+};
+
+export const createCustomField = {
+  name: 'create_custom_field',
+  description:
+    'Create a new custom field definition for a directory. Field values are then set on listings by passing the field name as a key (see create_listing / update_listing).',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      directory_id: { type: 'string', description: 'Directory ID' },
+      label: { type: 'string', description: 'Human-readable field label (shown to users)' },
+      type: { type: 'string', enum: CUSTOM_FIELD_TYPES, description: 'Field type' },
+      name: { type: 'string', description: 'Machine name/key used when setting values (auto-derived from label, snake_cased, if omitted)' },
+      fieldable_type: { type: 'string', enum: ['listing', 'organizer', 'article'], description: 'What the field attaches to (default: listing)' },
+      placeholder: { type: 'string', description: 'Input placeholder text' },
+      description: { type: 'string', description: 'Help text shown under the field' },
+      default_value: { type: 'string', description: 'Default value' },
+      value_prefix: { type: 'string', description: 'Prefix shown before the value (e.g. "$")' },
+      value_suffix: { type: 'string', description: 'Suffix shown after the value (e.g. "/mo")' },
+      options: { type: 'array', items: { type: 'string' }, description: 'Options for select / multi_select / list field types' },
+      is_required: { type: 'boolean', description: 'Whether the field is required' },
+      is_visible: { type: 'boolean', description: 'Whether the field is shown on the listing page (default: true)' },
+      show_on_card: { type: 'boolean', description: 'Show the value on listing cards' },
+      show_on_public_submission: { type: 'boolean', description: 'Show the field on the public submission form' },
+      filterable: { type: 'boolean', description: 'Allow filtering listings by this field' },
+      order: { type: 'number', description: 'Sort order among fields' },
+    },
+    required: ['label', 'type'],
+  },
+  handler: async ({ directory_id, ...body }) => {
+    const dir = resolveDirectory(directory_id);
+    const data = await api.post(`/directories/${dir}/custom-fields`, body);
+    return data.data || data;
+  },
+};
+
+export const updateCustomField = {
+  name: 'update_custom_field',
+  description: 'Update an existing custom field definition. Only pass fields you want to change.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      directory_id: { type: 'string', description: 'Directory ID' },
+      custom_field_id: { type: 'string', description: 'Custom field ID to update' },
+      label: { type: 'string', description: 'Human-readable field label' },
+      type: { type: 'string', enum: CUSTOM_FIELD_TYPES, description: 'Field type' },
+      name: { type: 'string', description: 'Machine name/key used when setting values' },
+      fieldable_type: { type: 'string', enum: ['listing', 'organizer', 'article'], description: 'What the field attaches to' },
+      placeholder: { type: 'string', description: 'Input placeholder text' },
+      description: { type: 'string', description: 'Help text shown under the field' },
+      default_value: { type: 'string', description: 'Default value' },
+      value_prefix: { type: 'string', description: 'Prefix shown before the value' },
+      value_suffix: { type: 'string', description: 'Suffix shown after the value' },
+      options: { type: 'array', items: { type: 'string' }, description: 'Options for select / multi_select / list field types' },
+      is_required: { type: 'boolean', description: 'Whether the field is required' },
+      is_visible: { type: 'boolean', description: 'Whether the field is shown on the listing page' },
+      show_on_card: { type: 'boolean', description: 'Show the value on listing cards' },
+      show_on_public_submission: { type: 'boolean', description: 'Show the field on the public submission form' },
+      filterable: { type: 'boolean', description: 'Allow filtering listings by this field' },
+      order: { type: 'number', description: 'Sort order among fields' },
+    },
+    required: ['custom_field_id'],
+  },
+  handler: async ({ directory_id, custom_field_id, ...body }) => {
+    const dir = resolveDirectory(directory_id);
+    const data = await api.put(`/directories/${dir}/custom-fields/${custom_field_id}`, body);
+    return data.data || data;
+  },
+};
+
+export const deleteCustomField = {
+  name: 'delete_custom_field',
+  description: 'Delete a custom field definition from a directory. This also removes the field\'s values from all listings.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      directory_id: { type: 'string', description: 'Directory ID' },
+      custom_field_id: { type: 'string', description: 'Custom field ID to delete' },
+    },
+    required: ['custom_field_id'],
+  },
+  handler: async ({ directory_id, custom_field_id }) => {
+    const dir = resolveDirectory(directory_id);
+    await api.delete(`/directories/${dir}/custom-fields/${custom_field_id}`);
+    return { success: true, message: `Custom field ${custom_field_id} deleted.` };
+  },
+};
+
 // ─── Listings ───
 
 export const listListings = {
@@ -282,7 +392,7 @@ export const getListing = {
 export const createListing = {
   name: 'create_listing',
   description:
-    'Create a new listing in a directory. You can include custom field values by using the field name as a key (use list_custom_fields to see available fields).',
+    'Create a new listing in a directory. You can include custom field values by using the field name as a key (use list_custom_fields to see available fields). Link the listing to organizers by passing their IDs (use list_organizers to find them).',
   inputSchema: {
     type: 'object',
     properties: {
@@ -309,6 +419,11 @@ export const createListing = {
         items: { type: 'number' },
         description: 'Array of tag IDs',
       },
+      organizers: {
+        type: 'array',
+        items: { type: 'number' },
+        description: 'Array of organizer IDs to link this listing to (must belong to the same directory; use list_organizers to find them)',
+      },
       is_active: { type: 'boolean', description: 'Active status (default: true)' },
       is_featured: { type: 'boolean', description: 'Featured status' },
       custom_fields: {
@@ -329,7 +444,7 @@ export const createListing = {
 
 export const updateListing = {
   name: 'update_listing',
-  description: 'Update an existing listing. Only pass fields you want to change.',
+  description: "Update an existing listing. Only pass fields you want to change. Pass organizers to replace the listing's linked organizers (omit it to leave them untouched).",
   inputSchema: {
     type: 'object',
     properties: {
@@ -356,6 +471,11 @@ export const updateListing = {
         type: 'array',
         items: { type: 'number' },
         description: 'Array of tag IDs',
+      },
+      organizers: {
+        type: 'array',
+        items: { type: 'number' },
+        description: 'Array of organizer IDs to link this listing to. Replaces the current set; pass [] to unlink all. Out-of-directory IDs are ignored.',
       },
       is_active: { type: 'boolean', description: 'Active status' },
       is_featured: { type: 'boolean', description: 'Featured status' },
@@ -436,6 +556,7 @@ export const bulkCreateListings = {
             description: { type: 'string' },
             categories: { type: 'array', items: { type: 'number' } },
             tags: { type: 'array', items: { type: 'number' } },
+            organizers: { type: 'array', items: { type: 'number' } },
           },
           required: ['name'],
           additionalProperties: true,
@@ -856,6 +977,10 @@ export const allTools = [
   updateTag,
   deleteTag,
   listCustomFields,
+  getCustomField,
+  createCustomField,
+  updateCustomField,
+  deleteCustomField,
   listListings,
   getListing,
   createListing,

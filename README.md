@@ -163,6 +163,10 @@ Ask Claude: *"List my Directify directories"* - or find it in the URL when viewi
 | Tool | Description |
 |------|-------------|
 | `list_custom_fields` | List all custom fields (useful to know field names for listings) |
+| `get_custom_field` | Get a custom field definition |
+| `create_custom_field` | Create a custom field definition (text, number, select, etc.) |
+| `update_custom_field` | Update a custom field definition |
+| `delete_custom_field` | Delete a custom field (also removes its values from listings) |
 
 ### Listings
 
@@ -170,11 +174,13 @@ Ask Claude: *"List my Directify directories"* - or find it in the URL when viewi
 |------|-------------|
 | `list_listings` | List all listings (paginated) |
 | `get_listing` | Get full listing details with custom fields |
-| `create_listing` | Create a new listing with custom field values |
-| `update_listing` | Update a listing |
+| `create_listing` | Create a new listing with custom field values (and link organizers) |
+| `update_listing` | Update a listing (including its linked organizers) |
 | `delete_listing` | Delete a listing |
 | `check_listing_exists` | Check if a URL already exists |
 | `bulk_create_listings` | Create up to 100 listings at once |
+
+Listings can be linked to one or more organizers by passing an `organizers` array of organizer IDs to `create_listing` / `update_listing` (use `list_organizers` to find the IDs). On update, the array replaces the current set.
 
 ### Articles
 
@@ -197,6 +203,20 @@ Ask Claude: *"List my Directify directories"* - or find it in the URL when viewi
 | `update_page` | Update a page |
 | `delete_page` | Delete a page |
 | `toggle_page` | Toggle published/unpublished status |
+
+### Organizers
+
+Organizers represent entities like agencies, studios, or event hosts that can be linked to multiple listings.
+
+| Tool | Description |
+|------|-------------|
+| `list_organizers` | List all organizers (with their linked listings) |
+| `get_organizer` | Get organizer details (with linked listings) |
+| `create_organizer` | Create a new organizer |
+| `update_organizer` | Update an organizer |
+| `delete_organizer` | Delete an organizer |
+
+To link an organizer to a listing, pass the organizer's ID in the `organizers` array of `create_listing` / `update_listing` (see Listings above).
 
 ## Example Conversations
 
@@ -223,6 +243,18 @@ Claude will use `create_article` with markdown content.
 > **You:** Update all listings that don't have a description and add a short one based on their name and category.
 
 Claude will use `list_listings`, then `update_listing` for each one.
+
+### Link listings to an organizer
+
+> **You:** Create an organizer "Acme Events", then add these 3 festival listings and link them all to it.
+
+Claude will use `create_organizer`, then `create_listing` for each festival with the new organizer's ID in the `organizers` array.
+
+### Define a custom field
+
+> **You:** Add a "Price Range" dropdown field with options $, $$, and $$$, and make it filterable.
+
+Claude will use `create_custom_field` with `type: "select"`, the options, and `filterable: true` — then you can set the value per listing via `create_listing` / `update_listing`.
 
 ### Create programmatic SEO pages
 
