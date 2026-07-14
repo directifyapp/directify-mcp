@@ -1,5 +1,51 @@
 import { api, resolveDirectory } from './api.js';
 
+// ─── Article SEO ───
+// The articles endpoint takes SEO as a nested `seo` object, but flat `seo_*` tool
+// args are far easier for a model to fill in. Map one onto the other.
+
+const ARTICLE_SEO_PROPERTIES = {
+  seo_title: { type: 'string', description: 'SEO title' },
+  seo_description: { type: 'string', description: 'SEO meta description' },
+  seo_keywords: { type: 'string', description: 'SEO keywords (comma-separated)' },
+  seo_og_title: { type: 'string', description: 'Open Graph title' },
+  seo_og_description: { type: 'string', description: 'Open Graph description' },
+  seo_og_image: { type: 'string', description: 'Open Graph image URL' },
+  seo_twitter_title: { type: 'string', description: 'Twitter card title' },
+  seo_twitter_description: { type: 'string', description: 'Twitter card description' },
+  seo_twitter_image: { type: 'string', description: 'Twitter card image URL' },
+  seo_canonical: { type: 'string', description: "Canonical URL (leave empty to use the article's own URL)" },
+};
+
+const ARTICLE_SEO_KEYS = {
+  seo_title: 'title',
+  seo_description: 'description',
+  seo_keywords: 'keywords',
+  seo_og_title: 'og_title',
+  seo_og_description: 'og_description',
+  seo_og_image: 'og_image',
+  seo_twitter_title: 'twitter_title',
+  seo_twitter_description: 'twitter_description',
+  seo_twitter_image: 'twitter_image',
+  seo_canonical: 'canonical',
+};
+
+function splitArticleSeo(input) {
+  const body = {};
+  const seo = {};
+
+  for (const [key, value] of Object.entries(input)) {
+    const seoKey = ARTICLE_SEO_KEYS[key];
+    if (!seoKey) {
+      body[key] = value;
+    } else if (value !== undefined) {
+      seo[seoKey] = value;
+    }
+  }
+
+  return Object.keys(seo).length > 0 ? { ...body, seo } : body;
+}
+
 // ─── Directories ───
 
 export const listDirectories = {
@@ -66,7 +112,10 @@ export const createCategory = {
       custom_icon_url: { type: 'string', description: 'Custom icon image URL' },
       parent_id: { type: 'number', description: 'Parent category ID for nesting' },
       is_active: { type: 'boolean', description: 'Whether the category is active (default: true)' },
+      show_on_sidebar: { type: 'boolean', description: 'Whether the category shows in the sidebar (default: true)' },
       order: { type: 'number', description: 'Sort order' },
+      seo_title: { type: 'string', description: 'SEO title for the category page' },
+      seo_description: { type: 'string', description: 'SEO meta description for the category page' },
       head_html: { type: 'string', description: 'Custom HTML injected into the <head> of the category page (e.g. hreflang tags, schema markup)' },
     },
     required: ['title'],
@@ -91,9 +140,13 @@ export const updateCategory = {
       description: { type: 'string', description: 'Category description' },
       content: { type: 'string', description: 'Category content (markdown)' },
       icon: { type: 'string', description: 'Icon' },
+      custom_icon_url: { type: 'string', description: 'Custom icon image URL' },
       parent_id: { type: 'number', description: 'Parent category ID' },
       is_active: { type: 'boolean', description: 'Active status' },
+      show_on_sidebar: { type: 'boolean', description: 'Whether the category shows in the sidebar' },
       order: { type: 'number', description: 'Sort order' },
+      seo_title: { type: 'string', description: 'SEO title for the category page' },
+      seo_description: { type: 'string', description: 'SEO meta description for the category page' },
       head_html: { type: 'string', description: 'Custom HTML injected into the <head> of the category page (e.g. hreflang tags, schema markup)' },
     },
     required: ['category_id'],
@@ -172,6 +225,8 @@ export const createTag = {
       text_color: { type: 'string', description: 'Text color (hex)' },
       icon: { type: 'string', description: 'Icon' },
       heroicon: { type: 'string', description: 'Heroicon name' },
+      show_title: { type: 'boolean', description: "Show the tag's title on the tag pill" },
+      show_icon: { type: 'boolean', description: "Show the tag's icon on the tag pill" },
       is_active: { type: 'boolean', description: 'Active status (default: true)' },
     },
     required: ['title'],
@@ -195,6 +250,10 @@ export const updateTag = {
       slug: { type: 'string', description: 'URL slug' },
       color: { type: 'string', description: 'Background color (hex)' },
       text_color: { type: 'string', description: 'Text color (hex)' },
+      icon: { type: 'string', description: 'Icon' },
+      heroicon: { type: 'string', description: 'Heroicon name' },
+      show_title: { type: 'boolean', description: "Show the tag's title on the tag pill" },
+      show_icon: { type: 'boolean', description: "Show the tag's icon on the tag pill" },
       is_active: { type: 'boolean', description: 'Active status' },
     },
     required: ['tag_id'],
@@ -248,6 +307,12 @@ const CUSTOM_FIELD_TYPES = [
   'multi_select', 'button', 'javascript', 'html',
 ];
 
+const CUSTOM_FIELD_PLACEMENTS = ['after_tags', 'after_categories', 'before_content', 'after_content'];
+
+const CUSTOM_FIELD_PLACEMENTS_ON_CARD = [
+  'after_categories', 'before_categories', 'after_buttons', 'before_buttons', 'after_title',
+];
+
 export const getCustomField = {
   name: 'get_custom_field',
   description: 'Get the definition of a specific custom field.',
@@ -284,12 +349,22 @@ export const createCustomField = {
       value_prefix: { type: 'string', description: 'Prefix shown before the value (e.g. "$")' },
       value_suffix: { type: 'string', description: 'Suffix shown after the value (e.g. "/mo")' },
       options: { type: 'array', items: { type: 'string' }, description: 'Options for select / multi_select / list field types' },
+      icon: { type: 'string', description: 'Icon (emoji or URL) shown next to the value' },
+      heroicon: { type: 'string', description: 'Heroicon name shown next to the value (e.g. heroicon-o-currency-dollar)' },
+      placement: { type: 'string', enum: CUSTOM_FIELD_PLACEMENTS, description: 'Where the field renders on the listing page' },
+      placement_on_card: { type: 'string', enum: CUSTOM_FIELD_PLACEMENTS_ON_CARD, description: 'Where the field renders on a listing card' },
       is_required: { type: 'boolean', description: 'Whether the field is required' },
       is_visible: { type: 'boolean', description: 'Whether the field is shown on the listing page (default: true)' },
       show_on_card: { type: 'boolean', description: 'Show the value on listing cards' },
       show_on_public_submission: { type: 'boolean', description: 'Show the field on the public submission form' },
+      show_label: { type: 'boolean', description: 'Show the field label on the listing page' },
+      show_label_on_card: { type: 'boolean', description: 'Show the field label on listing cards' },
+      show_icon: { type: 'boolean', description: 'Show the field icon on the listing page' },
+      show_icon_on_card: { type: 'boolean', description: 'Show the field icon on listing cards' },
       filterable: { type: 'boolean', description: 'Allow filtering listings by this field' },
       order: { type: 'number', description: 'Sort order among fields' },
+      settings: { type: 'object', description: 'Extra per-type settings as key-value pairs' },
+      validation_rules: { type: 'array', items: { type: 'string' }, description: 'Extra Laravel validation rules (e.g. ["min:3", "max:80"])' },
     },
     required: ['label', 'type'],
   },
@@ -318,12 +393,22 @@ export const updateCustomField = {
       value_prefix: { type: 'string', description: 'Prefix shown before the value' },
       value_suffix: { type: 'string', description: 'Suffix shown after the value' },
       options: { type: 'array', items: { type: 'string' }, description: 'Options for select / multi_select / list field types' },
+      icon: { type: 'string', description: 'Icon (emoji or URL) shown next to the value' },
+      heroicon: { type: 'string', description: 'Heroicon name shown next to the value' },
+      placement: { type: 'string', enum: CUSTOM_FIELD_PLACEMENTS, description: 'Where the field renders on the listing page' },
+      placement_on_card: { type: 'string', enum: CUSTOM_FIELD_PLACEMENTS_ON_CARD, description: 'Where the field renders on a listing card' },
       is_required: { type: 'boolean', description: 'Whether the field is required' },
       is_visible: { type: 'boolean', description: 'Whether the field is shown on the listing page' },
       show_on_card: { type: 'boolean', description: 'Show the value on listing cards' },
       show_on_public_submission: { type: 'boolean', description: 'Show the field on the public submission form' },
+      show_label: { type: 'boolean', description: 'Show the field label on the listing page' },
+      show_label_on_card: { type: 'boolean', description: 'Show the field label on listing cards' },
+      show_icon: { type: 'boolean', description: 'Show the field icon on the listing page' },
+      show_icon_on_card: { type: 'boolean', description: 'Show the field icon on listing cards' },
       filterable: { type: 'boolean', description: 'Allow filtering listings by this field' },
       order: { type: 'number', description: 'Sort order among fields' },
+      settings: { type: 'object', description: 'Extra per-type settings as key-value pairs' },
+      validation_rules: { type: 'array', items: { type: 'string' }, description: 'Extra Laravel validation rules (e.g. ["min:3", "max:80"])' },
     },
     required: ['custom_field_id'],
   },
@@ -403,12 +488,27 @@ export const createListing = {
       description: { type: 'string', description: 'Short description' },
       content: { type: 'string', description: 'Full content (markdown)' },
       image_url: { type: 'string', description: 'Cover image URL' },
+      image_alt_text: { type: 'string', description: 'Alt text for the cover image' },
       logo_url: { type: 'string', description: 'Logo URL' },
+      logo_alt_text: { type: 'string', description: 'Alt text for the logo' },
+      additional_image_urls: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Extra gallery image URLs',
+      },
+      video_url: { type: 'string', description: 'Video URL (e.g. YouTube)' },
+      video_thumbnail_url: { type: 'string', description: 'Thumbnail image URL for the video' },
       phone_number: { type: 'string', description: 'Phone number' },
       email: { type: 'string', description: 'Email address' },
       address: { type: 'string', description: 'Physical address' },
       latitude: { type: 'number', description: 'Latitude' },
       longitude: { type: 'number', description: 'Longitude' },
+      social_links: {
+        type: 'object',
+        description: 'Social profile links as key-value pairs (e.g. {"twitter": "https://x.com/acme"})',
+        additionalProperties: true,
+      },
+      category_id: { type: 'number', description: 'Primary category ID (merged with `categories`)' },
       categories: {
         type: 'array',
         items: { type: 'number' },
@@ -426,6 +526,13 @@ export const createListing = {
       },
       is_active: { type: 'boolean', description: 'Active status (default: true)' },
       is_featured: { type: 'boolean', description: 'Featured status' },
+      is_no_follow: { type: 'boolean', description: "Add rel=nofollow to the listing's outbound link" },
+      starts_at: { type: 'string', description: 'Date the listing becomes live (ISO 8601, e.g. 2026-08-01 09:00:00)' },
+      ends_at: { type: 'string', description: 'Date the listing expires (ISO 8601). Expired listings are badged or hidden per directory settings.' },
+      seo_title: { type: 'string', description: 'SEO title for the listing page' },
+      seo_description: { type: 'string', description: 'SEO meta description for the listing page' },
+      schema: { type: 'object', description: 'JSON-LD structured data for the listing page', additionalProperties: true },
+      head_html: { type: 'string', description: 'Custom HTML injected into the <head> of the listing page' },
       custom_fields: {
         type: 'object',
         description: 'Custom field values as key-value pairs (e.g. {"price_range": "2", "cuisine_type": "Italian"})',
@@ -456,12 +563,27 @@ export const updateListing = {
       description: { type: 'string', description: 'Short description' },
       content: { type: 'string', description: 'Full content (markdown)' },
       image_url: { type: 'string', description: 'Cover image URL' },
+      image_alt_text: { type: 'string', description: 'Alt text for the cover image' },
       logo_url: { type: 'string', description: 'Logo URL' },
+      logo_alt_text: { type: 'string', description: 'Alt text for the logo' },
+      additional_image_urls: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Extra gallery image URLs (replaces the current set)',
+      },
+      video_url: { type: 'string', description: 'Video URL (e.g. YouTube)' },
+      video_thumbnail_url: { type: 'string', description: 'Thumbnail image URL for the video' },
       phone_number: { type: 'string', description: 'Phone number' },
       email: { type: 'string', description: 'Email address' },
       address: { type: 'string', description: 'Physical address' },
       latitude: { type: 'number', description: 'Latitude' },
       longitude: { type: 'number', description: 'Longitude' },
+      social_links: {
+        type: 'object',
+        description: 'Social profile links as key-value pairs (e.g. {"twitter": "https://x.com/acme"}). Replaces the current set.',
+        additionalProperties: true,
+      },
+      category_id: { type: 'number', description: 'Primary category ID (merged with `categories`)' },
       categories: {
         type: 'array',
         items: { type: 'number' },
@@ -479,6 +601,13 @@ export const updateListing = {
       },
       is_active: { type: 'boolean', description: 'Active status' },
       is_featured: { type: 'boolean', description: 'Featured status' },
+      is_no_follow: { type: 'boolean', description: "Add rel=nofollow to the listing's outbound link" },
+      starts_at: { type: 'string', description: 'Date the listing becomes live (ISO 8601, e.g. 2026-08-01 09:00:00)' },
+      ends_at: { type: 'string', description: 'Date the listing expires (ISO 8601). Expired listings are badged or hidden per directory settings.' },
+      seo_title: { type: 'string', description: 'SEO title for the listing page' },
+      seo_description: { type: 'string', description: 'SEO meta description for the listing page' },
+      schema: { type: 'object', description: 'JSON-LD structured data for the listing page', additionalProperties: true },
+      head_html: { type: 'string', description: 'Custom HTML injected into the <head> of the listing page' },
       custom_fields: {
         type: 'object',
         description: 'Custom field values as key-value pairs',
@@ -554,9 +683,12 @@ export const bulkCreateListings = {
             name: { type: 'string' },
             url: { type: 'string' },
             description: { type: 'string' },
+            category_id: { type: 'number' },
             categories: { type: 'array', items: { type: 'number' } },
             tags: { type: 'array', items: { type: 'number' } },
             organizers: { type: 'array', items: { type: 'number' } },
+            starts_at: { type: 'string' },
+            ends_at: { type: 'string' },
           },
           required: ['name'],
           additionalProperties: true,
@@ -621,25 +753,22 @@ export const createArticle = {
       content: { type: 'string', description: 'HTML content' },
       markdown: { type: 'string', description: 'Markdown content' },
       active: { type: 'boolean', description: 'Published status (default: true)' },
+      published_at: { type: 'string', description: 'Publish date (ISO 8601). Defaults to now; pass a past date to backdate or a future one to schedule.' },
       thumbnail_url: { type: 'string', description: 'Thumbnail image URL' },
+      thumbnail_alt_text: { type: 'string', description: 'Alt text for the thumbnail image' },
       categories: {
         type: 'array',
         items: { type: 'string' },
         description: 'Category names (strings, not IDs)',
       },
-      seo_title: { type: 'string', description: 'SEO title' },
-      seo_description: { type: 'string', description: 'SEO meta description' },
+      ...ARTICLE_SEO_PROPERTIES,
     },
     required: ['title'],
   },
-  handler: async ({ directory_id, seo_title, seo_description, ...body }) => {
+  handler: async ({ directory_id, ...rest }) => {
     const dir = resolveDirectory(directory_id);
-    if (seo_title || seo_description) {
-      body.seo = {};
-      if (seo_title) body.seo.title = seo_title;
-      if (seo_description) body.seo.description = seo_description;
-    }
-    const data = await api.post(`/directories/${dir}/articles`, body);
+    const payload = splitArticleSeo(rest);
+    const data = await api.post(`/directories/${dir}/articles`, payload);
     return data.data || data;
   },
 };
@@ -657,25 +786,22 @@ export const updateArticle = {
       content: { type: 'string', description: 'HTML content' },
       markdown: { type: 'string', description: 'Markdown content' },
       active: { type: 'boolean', description: 'Published status' },
+      published_at: { type: 'string', description: 'Publish date (ISO 8601). Pass a past date to backdate or a future one to schedule.' },
       thumbnail_url: { type: 'string', description: 'Thumbnail image URL' },
+      thumbnail_alt_text: { type: 'string', description: 'Alt text for the thumbnail image' },
       categories: {
         type: 'array',
         items: { type: 'string' },
         description: 'Category names',
       },
-      seo_title: { type: 'string', description: 'SEO title' },
-      seo_description: { type: 'string', description: 'SEO meta description' },
+      ...ARTICLE_SEO_PROPERTIES,
     },
     required: ['article_id'],
   },
-  handler: async ({ directory_id, article_id, seo_title, seo_description, ...body }) => {
+  handler: async ({ directory_id, article_id, ...rest }) => {
     const dir = resolveDirectory(directory_id);
-    if (seo_title || seo_description) {
-      body.seo = {};
-      if (seo_title) body.seo.title = seo_title;
-      if (seo_description) body.seo.description = seo_description;
-    }
-    const data = await api.put(`/directories/${dir}/articles/${article_id}`, body);
+    const payload = splitArticleSeo(rest);
+    const data = await api.put(`/directories/${dir}/articles/${article_id}`, payload);
     return data.data || data;
   },
 };
@@ -764,6 +890,9 @@ export const createPage = {
       markdown: { type: 'string', description: 'Page content in markdown' },
       placement: { type: 'string', enum: ['navbar', 'footer', 'sidebar', 'unlisted'], description: 'Where the page link appears (default: unlisted)' },
       is_published: { type: 'boolean', description: 'Published status (default: true)' },
+      is_external: { type: 'boolean', description: 'Make this nav item link to an external URL instead of rendering a page' },
+      external_url: { type: 'string', description: 'Destination URL when is_external is true' },
+      new_tab: { type: 'boolean', description: 'Open the link in a new tab' },
       order: { type: 'number', description: 'Sort order for navigation' },
       seo_title: { type: 'string', description: 'SEO title' },
       seo_description: { type: 'string', description: 'SEO meta description' },
@@ -795,6 +924,9 @@ export const updatePage = {
       markdown: { type: 'string', description: 'Page content in markdown' },
       placement: { type: 'string', enum: ['navbar', 'footer', 'sidebar', 'unlisted'], description: 'Where the page link appears' },
       is_published: { type: 'boolean', description: 'Published status' },
+      is_external: { type: 'boolean', description: 'Make this nav item link to an external URL instead of rendering a page' },
+      external_url: { type: 'string', description: 'Destination URL when is_external is true' },
+      new_tab: { type: 'boolean', description: 'Open the link in a new tab' },
       order: { type: 'number', description: 'Sort order for navigation' },
       seo_title: { type: 'string', description: 'SEO title' },
       seo_description: { type: 'string', description: 'SEO meta description' },
@@ -896,6 +1028,8 @@ export const createOrganizer = {
       slug: { type: 'string', description: 'URL slug (auto-generated from name if not provided)' },
       description: { type: 'string', description: 'Short description (shown on cards and header)' },
       content: { type: 'string', description: 'Long-form content (markdown supported, rendered as styled prose on profile page)' },
+      logo_url: { type: 'string', description: 'Logo image URL' },
+      cover_image_url: { type: 'string', description: 'Cover image URL' },
       email: { type: 'string', description: 'Contact email address' },
       phone: { type: 'string', description: 'Contact phone number' },
       address: { type: 'string', description: 'Physical address' },
@@ -926,6 +1060,8 @@ export const updateOrganizer = {
       slug: { type: 'string', description: 'URL slug' },
       description: { type: 'string', description: 'Short description (shown on cards and header)' },
       content: { type: 'string', description: 'Long-form content (markdown supported, rendered as styled prose on profile page)' },
+      logo_url: { type: 'string', description: 'Logo image URL' },
+      cover_image_url: { type: 'string', description: 'Cover image URL' },
       email: { type: 'string', description: 'Contact email address' },
       phone: { type: 'string', description: 'Contact phone number' },
       address: { type: 'string', description: 'Physical address' },
