@@ -182,6 +182,8 @@ Ask Claude: *"List my Directify directories"* - or find it in the URL when viewi
 
 Listings can be linked to one or more organizers by passing an `organizers` array of organizer IDs to `create_listing` / `update_listing` (use `list_organizers` to find the IDs). On update, the array replaces the current set.
 
+> **Note:** the listing URL acts as a unique key per directory. Creating a listing (single or bulk) with a URL that already exists in the directory **updates** that existing listing instead of creating a duplicate. Give each listing its own unique URL, or omit the URL to always create a new listing.
+
 ### Articles
 
 | Tool | Description |

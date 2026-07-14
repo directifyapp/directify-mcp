@@ -477,13 +477,17 @@ export const getListing = {
 export const createListing = {
   name: 'create_listing',
   description:
-    'Create a new listing in a directory. You can include custom field values by using the field name as a key (use list_custom_fields to see available fields). Link the listing to organizers by passing their IDs (use list_organizers to find them).',
+    'Create a new listing in a directory. IMPORTANT: the URL is a unique key per directory — if a listing with the same URL already exists, that listing is UPDATED (overwritten) instead of a new one being created. Give each listing its own unique URL (e.g. the specific product page, not a shared homepage), or omit the URL to always create a new listing. You can include custom field values by using the field name as a key (use list_custom_fields to see available fields). Link the listing to organizers by passing their IDs (use list_organizers to find them).',
   inputSchema: {
     type: 'object',
     properties: {
       directory_id: { type: 'string', description: 'Directory ID' },
       name: { type: 'string', description: 'Listing name (required)' },
-      url: { type: 'string', description: 'Website URL' },
+      url: {
+        type: 'string',
+        description:
+          'Website URL. Must be unique within the directory — creating with a URL that already exists updates that existing listing instead of adding a new one.',
+      },
       slug: { type: 'string', description: 'URL slug' },
       description: { type: 'string', description: 'Short description' },
       content: { type: 'string', description: 'Full content (markdown)' },
@@ -669,7 +673,8 @@ export const checkListingExists = {
 
 export const bulkCreateListings = {
   name: 'bulk_create_listings',
-  description: 'Create multiple listings at once (max 100 per request).',
+  description:
+    'Create multiple listings at once (max 100 per request). IMPORTANT: the URL is a unique key per directory — a listing whose URL already exists in the directory (or appears twice in the batch) UPDATES that existing listing instead of creating a new one. Give each listing its own unique URL, or omit the URL to always create new listings.',
   inputSchema: {
     type: 'object',
     properties: {
