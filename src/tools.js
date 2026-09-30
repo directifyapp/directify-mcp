@@ -69,7 +69,7 @@ function translationsProperty(fields, exampleField = fields.split(',')[0].trim()
 }
 
 const LISTING_TRANSLATABLE = 'name, slug, description, content, seo_title, seo_description';
-const CATEGORY_TRANSLATABLE = 'title, slug, description, content, seo_title, seo_description';
+const CATEGORY_TRANSLATABLE = 'title, slug, display_name, description, content, filter_group, seo_title, seo_description';
 const CUSTOM_FIELD_TRANSLATABLE = 'label, placeholder, description, value_prefix, value_suffix';
 const ARTICLE_TRANSLATABLE = 'title, slug, content, markdown, seo_title, seo_description';
 const PAGE_TRANSLATABLE = 'title, slug, markdown, seo_title, seo_description';
