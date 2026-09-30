@@ -6,11 +6,11 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { allTools } from './tools.js';
+import { allTools, SERVER_INSTRUCTIONS } from './tools.js';
 
 const server = new Server(
-  { name: 'directify', version: '1.0.0' },
-  { capabilities: { tools: {} } }
+  { name: 'directify', version: '1.6.0' },
+  { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS }
 );
 
 // List available tools

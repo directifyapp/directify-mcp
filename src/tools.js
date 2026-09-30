@@ -46,6 +46,56 @@ function splitArticleSeo(input) {
   return Object.keys(seo).length > 0 ? { ...body, seo } : body;
 }
 
+// ─── Multi-language ───
+// Multilingual directories: GETs accept ?locale=<code> to read text fields in that
+// language; writes take a `translations` object ({"es": {"name": "…"}}) instead.
+// ?locale is never sent on writes (the API answers 422).
+
+const LOCALE_PROPERTY = {
+  type: 'string',
+  description:
+    "Language code of this directory (see list_languages). Text fields come back in that language (its translation where one exists, else the original). Omit to get records as stored. An unknown code returns a 422 listing the directory's language codes.",
+};
+
+function translationsProperty(fields, exampleField = fields.split(',')[0].trim()) {
+  return {
+    type: 'object',
+    description: `Translations for multilingual directories, keyed by language code (see list_languages) → { field: text }, e.g. {"es": {"${exampleField}": "…"}}. Translatable text fields: ${fields}. A field that can't be translated returns a 422 naming the allowed ones. Pass null for a field to remove that translation. The record's own language can't be a key (422: send those fields at the top level instead).`,
+    additionalProperties: {
+      type: 'object',
+      additionalProperties: { type: ['string', 'null'] },
+    },
+  };
+}
+
+const LISTING_TRANSLATABLE = 'name, slug, description, content, seo_title, seo_description';
+const CATEGORY_TRANSLATABLE = 'title, slug, description, content, seo_title, seo_description';
+const CUSTOM_FIELD_TRANSLATABLE = 'label, placeholder, description, value_prefix, value_suffix';
+const ARTICLE_TRANSLATABLE = 'title, slug, content, markdown, seo_title, seo_description';
+const PAGE_TRANSLATABLE = 'title, slug, markdown, seo_title, seo_description';
+const ORGANIZER_TRANSLATABLE = 'name, slug, description, content';
+
+const SOURCE_LOCALE_PROPERTY = {
+  type: 'string',
+  description:
+    "Language code the listing's own (top-level) fields are written in (default: the directory's default language; see list_languages). When set to another language, `translations` may include the default language's code.",
+};
+
+function withQuery(path, params) {
+  const query = Object.entries(params)
+    .filter(([, value]) => value !== undefined && value !== null && value !== '')
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+    .join('&');
+  return query ? `${path}?${query}` : path;
+}
+
+export const SERVER_INSTRUCTIONS = [
+  'Directify: manage directories and their listings, categories, tags, custom fields, organizers, custom pages and blog articles.',
+  'Multi-language: a directory has a default language (the language records\' own fields are written in) and may have extra languages. Before reading or writing content of a multilingual directory, call list_languages to get its language codes.',
+  'To read content in a language, pass `locale` to list/get tools. Responses of multilingual directories include a `translations` object per record ({"es": {"name": "…"}}); listings also include `source_locale` (null = the default language).',
+  'To write translations, pass `translations` (keyed by language code) to create/update tools; never use the record\'s own language as a key. A listing written in a non-default language takes `source_locale`.',
+].join('\n\n');
+
 // ─── Directories ───
 
 export const listDirectories = {
@@ -61,6 +111,23 @@ export const listDirectories = {
   },
 };
 
+export const listLanguages = {
+  name: 'list_languages',
+  description:
+    "List a directory's languages: its default language (the language records' own fields are written in) and the extra languages translations can be written in, with each language's code, name, RTL flag and URL, plus the languages new listings are auto-translated into and the do-not-translate glossary. Call this first when working with a multilingual directory: use the codes as `locale` on list/get tools and as keys of `translations` on create/update tools.",
+  inputSchema: {
+    type: 'object',
+    properties: {
+      directory_id: { type: 'string', description: 'Directory ID (optional if DIRECTIFY_DIRECTORY_ID is set)' },
+    },
+  },
+  handler: async ({ directory_id }) => {
+    const dir = resolveDirectory(directory_id);
+    const data = await api.get(`/directories/${dir}/languages`);
+    return data.data || data;
+  },
+};
+
 // ─── Categories ───
 
 export const listCategories = {
@@ -70,11 +137,12 @@ export const listCategories = {
     type: 'object',
     properties: {
       directory_id: { type: 'string', description: 'Directory ID (optional if DIRECTIFY_DIRECTORY_ID is set)' },
+      locale: LOCALE_PROPERTY,
     },
   },
-  handler: async ({ directory_id }) => {
+  handler: async ({ directory_id, locale }) => {
     const dir = resolveDirectory(directory_id);
-    const data = await api.get(`/directories/${dir}/categories`);
+    const data = await api.get(withQuery(`/directories/${dir}/categories`, { locale }));
     return data.data || data;
   },
 };
@@ -87,12 +155,13 @@ export const getCategory = {
     properties: {
       directory_id: { type: 'string', description: 'Directory ID' },
       category_id: { type: 'string', description: 'Category ID' },
+      locale: LOCALE_PROPERTY,
     },
     required: ['category_id'],
   },
-  handler: async ({ directory_id, category_id }) => {
+  handler: async ({ directory_id, category_id, locale }) => {
     const dir = resolveDirectory(directory_id);
-    const data = await api.get(`/directories/${dir}/categories/${category_id}`);
+    const data = await api.get(withQuery(`/directories/${dir}/categories/${category_id}`, { locale }));
     return data.data || data;
   },
 };
@@ -117,6 +186,7 @@ export const createCategory = {
       seo_title: { type: 'string', description: 'SEO title for the category page' },
       seo_description: { type: 'string', description: 'SEO meta description for the category page' },
       head_html: { type: 'string', description: 'Custom HTML injected into the <head> of the category page (e.g. hreflang tags, schema markup)' },
+      translations: translationsProperty(CATEGORY_TRANSLATABLE),
     },
     required: ['title'],
   },
@@ -148,6 +218,7 @@ export const updateCategory = {
       seo_title: { type: 'string', description: 'SEO title for the category page' },
       seo_description: { type: 'string', description: 'SEO meta description for the category page' },
       head_html: { type: 'string', description: 'Custom HTML injected into the <head> of the category page (e.g. hreflang tags, schema markup)' },
+      translations: translationsProperty(CATEGORY_TRANSLATABLE),
     },
     required: ['category_id'],
   },
@@ -185,11 +256,12 @@ export const listTags = {
     type: 'object',
     properties: {
       directory_id: { type: 'string', description: 'Directory ID' },
+      locale: LOCALE_PROPERTY,
     },
   },
-  handler: async ({ directory_id }) => {
+  handler: async ({ directory_id, locale }) => {
     const dir = resolveDirectory(directory_id);
-    const data = await api.get(`/directories/${dir}/tags`);
+    const data = await api.get(withQuery(`/directories/${dir}/tags`, { locale }));
     return data.data || data;
   },
 };
@@ -202,12 +274,13 @@ export const getTag = {
     properties: {
       directory_id: { type: 'string', description: 'Directory ID' },
       tag_id: { type: 'string', description: 'Tag ID' },
+      locale: LOCALE_PROPERTY,
     },
     required: ['tag_id'],
   },
-  handler: async ({ directory_id, tag_id }) => {
+  handler: async ({ directory_id, tag_id, locale }) => {
     const dir = resolveDirectory(directory_id);
-    const data = await api.get(`/directories/${dir}/tags/${tag_id}`);
+    const data = await api.get(withQuery(`/directories/${dir}/tags/${tag_id}`, { locale }));
     return data.data || data;
   },
 };
@@ -228,6 +301,7 @@ export const createTag = {
       show_title: { type: 'boolean', description: "Show the tag's title on the tag pill" },
       show_icon: { type: 'boolean', description: "Show the tag's icon on the tag pill" },
       is_active: { type: 'boolean', description: 'Active status (default: true)' },
+      translations: translationsProperty('text fields such as title', 'title'),
     },
     required: ['title'],
   },
@@ -255,6 +329,7 @@ export const updateTag = {
       show_title: { type: 'boolean', description: "Show the tag's title on the tag pill" },
       show_icon: { type: 'boolean', description: "Show the tag's icon on the tag pill" },
       is_active: { type: 'boolean', description: 'Active status' },
+      translations: translationsProperty('text fields such as title', 'title'),
     },
     required: ['tag_id'],
   },
@@ -292,11 +367,12 @@ export const listCustomFields = {
     type: 'object',
     properties: {
       directory_id: { type: 'string', description: 'Directory ID' },
+      locale: LOCALE_PROPERTY,
     },
   },
-  handler: async ({ directory_id }) => {
+  handler: async ({ directory_id, locale }) => {
     const dir = resolveDirectory(directory_id);
-    const data = await api.get(`/directories/${dir}/custom-fields`);
+    const data = await api.get(withQuery(`/directories/${dir}/custom-fields`, { locale }));
     return data.data || data;
   },
 };
@@ -321,12 +397,13 @@ export const getCustomField = {
     properties: {
       directory_id: { type: 'string', description: 'Directory ID' },
       custom_field_id: { type: 'string', description: 'Custom field ID' },
+      locale: LOCALE_PROPERTY,
     },
     required: ['custom_field_id'],
   },
-  handler: async ({ directory_id, custom_field_id }) => {
+  handler: async ({ directory_id, custom_field_id, locale }) => {
     const dir = resolveDirectory(directory_id);
-    const data = await api.get(`/directories/${dir}/custom-fields/${custom_field_id}`);
+    const data = await api.get(withQuery(`/directories/${dir}/custom-fields/${custom_field_id}`, { locale }));
     return data.data || data;
   },
 };
@@ -365,6 +442,7 @@ export const createCustomField = {
       order: { type: 'number', description: 'Sort order among fields' },
       settings: { type: 'object', description: 'Extra per-type settings as key-value pairs' },
       validation_rules: { type: 'array', items: { type: 'string' }, description: 'Extra Laravel validation rules (e.g. ["min:3", "max:80"])' },
+      translations: translationsProperty(CUSTOM_FIELD_TRANSLATABLE),
     },
     required: ['label', 'type'],
   },
@@ -409,6 +487,7 @@ export const updateCustomField = {
       order: { type: 'number', description: 'Sort order among fields' },
       settings: { type: 'object', description: 'Extra per-type settings as key-value pairs' },
       validation_rules: { type: 'array', items: { type: 'string' }, description: 'Extra Laravel validation rules (e.g. ["min:3", "max:80"])' },
+      translations: translationsProperty(CUSTOM_FIELD_TRANSLATABLE),
     },
     required: ['custom_field_id'],
   },
@@ -441,17 +520,19 @@ export const deleteCustomField = {
 
 export const listListings = {
   name: 'list_listings',
-  description: 'List all listings in a directory (paginated, 100 per page).',
+  description:
+    'List all listings in a directory (paginated, 100 per page). For multilingual directories, call list_languages first and pass `locale` to read listings in one language; each listing also carries `translations` and `source_locale`.',
   inputSchema: {
     type: 'object',
     properties: {
       directory_id: { type: 'string', description: 'Directory ID' },
       page: { type: 'number', description: 'Page number (default: 1)' },
+      locale: LOCALE_PROPERTY,
     },
   },
-  handler: async ({ directory_id, page = 1 }) => {
+  handler: async ({ directory_id, page = 1, locale }) => {
     const dir = resolveDirectory(directory_id);
-    const data = await api.get(`/directories/${dir}/projects?page=${page}`);
+    const data = await api.get(withQuery(`/directories/${dir}/projects`, { page, locale }));
     return data;
   },
 };
@@ -464,12 +545,13 @@ export const getListing = {
     properties: {
       directory_id: { type: 'string', description: 'Directory ID' },
       listing_id: { type: 'string', description: 'Listing ID' },
+      locale: LOCALE_PROPERTY,
     },
     required: ['listing_id'],
   },
-  handler: async ({ directory_id, listing_id }) => {
+  handler: async ({ directory_id, listing_id, locale }) => {
     const dir = resolveDirectory(directory_id);
-    const data = await api.get(`/directories/${dir}/projects/${listing_id}`);
+    const data = await api.get(withQuery(`/directories/${dir}/projects/${listing_id}`, { locale }));
     return data.data || data;
   },
 };
@@ -477,7 +559,7 @@ export const getListing = {
 export const createListing = {
   name: 'create_listing',
   description:
-    'Create a new listing in a directory. IMPORTANT: the URL is a unique key per directory — if a listing with the same URL already exists, that listing is UPDATED (overwritten) instead of a new one being created. Give each listing its own unique URL (e.g. the specific product page, not a shared homepage), or omit the URL to always create a new listing. You can include custom field values by using the field name as a key (use list_custom_fields to see available fields). Link the listing to organizers by passing their IDs (use list_organizers to find them).',
+    'Create a new listing in a directory. IMPORTANT: the URL is a unique key per directory — if a listing with the same URL already exists, that listing is UPDATED (overwritten) instead of a new one being created. Give each listing its own unique URL (e.g. the specific product page, not a shared homepage), or omit the URL to always create a new listing. You can include custom field values by using the field name as a key (use list_custom_fields to see available fields). Link the listing to organizers by passing their IDs (use list_organizers to find them). Multilingual directories: call list_languages first; pass translations for other languages in `translations`, and `source_locale` if the top-level fields are not in the default language.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -542,6 +624,8 @@ export const createListing = {
         description: 'Custom field values as key-value pairs (e.g. {"price_range": "2", "cuisine_type": "Italian"})',
         additionalProperties: true,
       },
+      source_locale: SOURCE_LOCALE_PROPERTY,
+      translations: translationsProperty(LISTING_TRANSLATABLE),
     },
     required: ['name'],
   },
@@ -555,7 +639,7 @@ export const createListing = {
 
 export const updateListing = {
   name: 'update_listing',
-  description: "Update an existing listing. Only pass fields you want to change. Pass organizers to replace the listing's linked organizers (omit it to leave them untouched).",
+  description: "Update an existing listing. Only pass fields you want to change. Pass organizers to replace the listing's linked organizers (omit it to leave them untouched). Multilingual directories: call list_languages first; add or change other languages via `translations` (only the languages and fields you pass change).",
   inputSchema: {
     type: 'object',
     properties: {
@@ -617,6 +701,8 @@ export const updateListing = {
         description: 'Custom field values as key-value pairs',
         additionalProperties: true,
       },
+      source_locale: SOURCE_LOCALE_PROPERTY,
+      translations: translationsProperty(LISTING_TRANSLATABLE),
     },
     required: ['listing_id'],
   },
@@ -674,7 +760,7 @@ export const checkListingExists = {
 export const bulkCreateListings = {
   name: 'bulk_create_listings',
   description:
-    'Create multiple listings at once (max 100 per request). IMPORTANT: the URL is a unique key per directory — a listing whose URL already exists in the directory (or appears twice in the batch) UPDATES that existing listing instead of creating a new one. Give each listing its own unique URL, or omit the URL to always create new listings.',
+    'Create multiple listings at once (max 100 per request). IMPORTANT: the URL is a unique key per directory — a listing whose URL already exists in the directory (or appears twice in the batch) UPDATES that existing listing instead of creating a new one. Give each listing its own unique URL, or omit the URL to always create new listings. Multilingual directories: call list_languages first; each item may carry `translations` and `source_locale`.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -694,6 +780,8 @@ export const bulkCreateListings = {
             organizers: { type: 'array', items: { type: 'number' } },
             starts_at: { type: 'string' },
             ends_at: { type: 'string' },
+            source_locale: SOURCE_LOCALE_PROPERTY,
+            translations: translationsProperty(LISTING_TRANSLATABLE),
           },
           required: ['name'],
           additionalProperties: true,
@@ -719,11 +807,12 @@ export const listArticles = {
     properties: {
       directory_id: { type: 'string', description: 'Directory ID' },
       page: { type: 'number', description: 'Page number (default: 1)' },
+      locale: LOCALE_PROPERTY,
     },
   },
-  handler: async ({ directory_id, page = 1 }) => {
+  handler: async ({ directory_id, page = 1, locale }) => {
     const dir = resolveDirectory(directory_id);
-    const data = await api.get(`/directories/${dir}/articles?page=${page}`);
+    const data = await api.get(withQuery(`/directories/${dir}/articles`, { page, locale }));
     return data;
   },
 };
@@ -736,12 +825,13 @@ export const getArticle = {
     properties: {
       directory_id: { type: 'string', description: 'Directory ID' },
       article_id: { type: 'string', description: 'Article ID' },
+      locale: LOCALE_PROPERTY,
     },
     required: ['article_id'],
   },
-  handler: async ({ directory_id, article_id }) => {
+  handler: async ({ directory_id, article_id, locale }) => {
     const dir = resolveDirectory(directory_id);
-    const data = await api.get(`/directories/${dir}/articles/${article_id}`);
+    const data = await api.get(withQuery(`/directories/${dir}/articles/${article_id}`, { locale }));
     return data.data || data;
   },
 };
@@ -767,6 +857,7 @@ export const createArticle = {
         description: 'Category names (strings, not IDs)',
       },
       ...ARTICLE_SEO_PROPERTIES,
+      translations: translationsProperty(ARTICLE_TRANSLATABLE),
     },
     required: ['title'],
   },
@@ -800,6 +891,7 @@ export const updateArticle = {
         description: 'Category names',
       },
       ...ARTICLE_SEO_PROPERTIES,
+      translations: translationsProperty(ARTICLE_TRANSLATABLE),
     },
     required: ['article_id'],
   },
@@ -856,11 +948,12 @@ export const listPages = {
     type: 'object',
     properties: {
       directory_id: { type: 'string', description: 'Directory ID' },
+      locale: LOCALE_PROPERTY,
     },
   },
-  handler: async ({ directory_id }) => {
+  handler: async ({ directory_id, locale }) => {
     const dir = resolveDirectory(directory_id);
-    const data = await api.get(`/directories/${dir}/pages`);
+    const data = await api.get(withQuery(`/directories/${dir}/pages`, { locale }));
     return data;
   },
 };
@@ -873,12 +966,13 @@ export const getPage = {
     properties: {
       directory_id: { type: 'string', description: 'Directory ID' },
       page_id: { type: 'string', description: 'Page ID' },
+      locale: LOCALE_PROPERTY,
     },
     required: ['page_id'],
   },
-  handler: async ({ directory_id, page_id }) => {
+  handler: async ({ directory_id, page_id, locale }) => {
     const dir = resolveDirectory(directory_id);
-    const data = await api.get(`/directories/${dir}/pages/${page_id}`);
+    const data = await api.get(withQuery(`/directories/${dir}/pages/${page_id}`, { locale }));
     return data.data || data;
   },
 };
@@ -901,6 +995,7 @@ export const createPage = {
       order: { type: 'number', description: 'Sort order for navigation' },
       seo_title: { type: 'string', description: 'SEO title' },
       seo_description: { type: 'string', description: 'SEO meta description' },
+      translations: translationsProperty(PAGE_TRANSLATABLE),
     },
     required: ['title'],
   },
@@ -935,6 +1030,7 @@ export const updatePage = {
       order: { type: 'number', description: 'Sort order for navigation' },
       seo_title: { type: 'string', description: 'SEO title' },
       seo_description: { type: 'string', description: 'SEO meta description' },
+      translations: translationsProperty(PAGE_TRANSLATABLE),
     },
     required: ['page_id'],
   },
@@ -995,11 +1091,12 @@ export const listOrganizers = {
     type: 'object',
     properties: {
       directory_id: { type: 'string', description: 'Directory ID' },
+      locale: LOCALE_PROPERTY,
     },
   },
-  handler: async ({ directory_id }) => {
+  handler: async ({ directory_id, locale }) => {
     const dir = resolveDirectory(directory_id);
-    const data = await api.get(`/directories/${dir}/organizers`);
+    const data = await api.get(withQuery(`/directories/${dir}/organizers`, { locale }));
     return data.data || data;
   },
 };
@@ -1012,12 +1109,13 @@ export const getOrganizer = {
     properties: {
       directory_id: { type: 'string', description: 'Directory ID' },
       organizer_id: { type: 'string', description: 'Organizer ID' },
+      locale: LOCALE_PROPERTY,
     },
     required: ['organizer_id'],
   },
-  handler: async ({ directory_id, organizer_id }) => {
+  handler: async ({ directory_id, organizer_id, locale }) => {
     const dir = resolveDirectory(directory_id);
-    const data = await api.get(`/directories/${dir}/organizers/${organizer_id}`);
+    const data = await api.get(withQuery(`/directories/${dir}/organizers/${organizer_id}`, { locale }));
     return data.data || data;
   },
 };
@@ -1043,6 +1141,7 @@ export const createOrganizer = {
       user_id: { type: 'number', description: 'User ID to assign as organizer owner (for submitter dashboard access)' },
       is_active: { type: 'boolean', description: 'Active status (default: true)' },
       order: { type: 'number', description: 'Sort order (default: 0)' },
+      translations: translationsProperty(ORGANIZER_TRANSLATABLE),
     },
     required: ['name'],
   },
@@ -1075,6 +1174,7 @@ export const updateOrganizer = {
       user_id: { type: 'number', description: 'User ID to assign as organizer owner' },
       is_active: { type: 'boolean', description: 'Active status' },
       order: { type: 'number', description: 'Sort order' },
+      translations: translationsProperty(ORGANIZER_TRANSLATABLE),
     },
     required: ['organizer_id'],
   },
@@ -1107,6 +1207,7 @@ export const deleteOrganizer = {
 
 export const allTools = [
   listDirectories,
+  listLanguages,
   listCategories,
   getCategory,
   createCategory,

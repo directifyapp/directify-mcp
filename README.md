@@ -137,6 +137,11 @@ Ask Claude: *"List my Directify directories"* - or find it in the URL when viewi
 | Tool | Description |
 |------|-------------|
 | `list_directories` | List all directories you own |
+| `list_languages` | List a directory's default and extra languages (call first on multilingual directories) |
+
+### Multi-language
+
+On multilingual directories, list/get tools take an optional `locale` (a language code from `list_languages`) to read text fields in that language, and responses include a `translations` object per record (listings also carry `source_locale`). Create/update tools (and each `bulk_create_listings` item) accept `translations`, keyed by language code, e.g. `{"es": {"name": "…"}}`; pass `null` for a field to remove that translation. Listings written in a non-default language take `source_locale`.
 
 ### Categories
 
@@ -263,6 +268,12 @@ Claude will use `create_custom_field` with `type: "select"`, the options, and `f
 > **You:** Create comparison pages for "NYC vs Chicago pizza", "NYC vs LA tacos", and "NYC vs Boston seafood" with SEO titles and descriptions.
 
 Claude will use `create_page` for each with markdown content, `unlisted` placement, and SEO metadata.
+
+### Translate content
+
+> **You:** Add Spanish translations for all my categories.
+
+Claude will use `list_languages`, then `list_categories` and `update_category` with `translations: {"es": {...}}` for each one.
 
 ### Manage custom pages
 
