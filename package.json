@@ -1,6 +1,6 @@
 {
   "name": "directify-mcp",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "description": "MCP server for Directify - manage your directory websites through AI assistants like Claude.",
   "main": "src/index.js",
   "bin": {
