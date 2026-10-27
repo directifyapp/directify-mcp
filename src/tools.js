@@ -1364,7 +1364,7 @@ export const updateTheme = {
 export const previewTheme = {
   name: 'preview_theme',
   description:
-    "Take a screenshot of one of the directory's live pages so you can see the theme as a visitor does — use it after update_theme to check the result. Pages: home, browse, categories, category, listing, blog, map, submit (category/listing/blog need at least one record). Returns the image plus its URL. Limited to 20 captures per hour per account.",
+    "Take a screenshot of one of the directory's live pages so you can see the theme as a visitor does — use it after update_theme to check the result. Pages: home, browse, categories, category, listing, blog, map, submit (category/listing/blog need at least one record). Returns the image plus its URL. Limited to 20 captures per hour per account. Captures are taken on the directory's Directify subdomain in preview mode (same theme and content as the custom domain), so the hostname in the image differs from a connected custom domain.",
   inputSchema: {
     type: 'object',
     properties: {
