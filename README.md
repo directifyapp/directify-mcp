@@ -225,6 +225,16 @@ Organizers represent entities like agencies, studios, or event hosts that can be
 
 To link an organizer to a listing, pass the organizer's ID in the `organizers` array of `create_listing` / `update_listing` (see Listings above).
 
+### Theme (design)
+
+Everything the Theme Editor controls, as one document. Ask for a colour, font, template, hero text, footer or homepage change and the assistant applies it live, then shows you the page.
+
+| Tool | Description |
+|------|-------------|
+| `get_theme` | Read the whole theme plus the valid options for the directory's template (templates, themes, fonts, palettes, section keys, template settings, labels, CSS vars) |
+| `update_theme` | Partial update: template, base theme, palette or brand colors, fonts, dark mode, hero (text, background media, colors), buttons, homepage sections, footer, brand images from URLs, per-template settings, labels, submitter panel, custom CSS vars, translations |
+| `preview_theme` | Screenshot a page (home, category, listing, blog…) at phone, tablet or desktop width |
+
 ## Example Conversations
 
 ### Create a listing

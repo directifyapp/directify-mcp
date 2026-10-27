@@ -36,6 +36,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   try {
     const result = await tool.handler(args || {});
+    // A tool may build its own content blocks (preview_theme returns an image).
+    if (result && typeof result === 'object' && Array.isArray(result.content)) {
+      return result;
+    }
     return {
       content: [
         {

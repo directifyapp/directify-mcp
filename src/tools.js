@@ -90,10 +90,11 @@ function withQuery(path, params) {
 }
 
 export const SERVER_INSTRUCTIONS = [
-  'Directify: manage directories and their listings, categories, tags, custom fields, organizers, custom pages and blog articles.',
+  'Directify: manage directories and their listings, categories, tags, custom fields, organizers, custom pages, blog articles and theme (design).',
   'Multi-language: a directory has a default language (the language records\' own fields are written in) and may have extra languages. Before reading or writing content of a multilingual directory, call list_languages to get its language codes.',
   'To read content in a language, pass `locale` to list/get tools. Responses of multilingual directories include a `translations` object per record ({"es": {"name": "…"}}); listings also include `source_locale` (null = the default language).',
   'To write translations, pass `translations` (keyed by language code) to create/update tools; never use the record\'s own language as a key. A listing written in a non-default language takes `source_locale`.',
+  'Design: get_theme reads everything the Theme Editor controls plus the valid options for the directory\'s template; update_theme changes any part of it and is live at once; preview_theme screenshots a page so you can check the result. Always call get_theme before update_theme.',
 ].join('\n\n');
 
 // ─── Directories ───
@@ -1205,6 +1206,197 @@ export const deleteOrganizer = {
 
 // ─── Export all tools ───
 
+// ─── Theme (the Theme Editor over the API) ───
+
+const COLOR_PROPERTY = { type: ['string', 'null'], description: 'Hex like #1f2937 (rgb()/hsl()/oklch() accepted); null clears' };
+const COLOR_MAP = { type: 'object', additionalProperties: { type: ['string', 'null'] } };
+
+export const getTheme = {
+  name: 'get_theme',
+  description:
+    "Read a directory's theme: everything the Theme Editor controls (template, base theme, brand colors, fonts, dark mode, hero text/media/colors, buttons, homepage sections, footer, brand images, per-template settings, editable labels, submitter panel, custom CSS vars) plus `options` listing the valid values for this directory's template (templates, themes, fonts, palettes, section keys, template_settings, labels, CSS vars, languages). Call this before update_theme so you only send valid keys and values. `public_url` is the live site. Multilingual directories include `translations`.",
+  inputSchema: {
+    type: 'object',
+    properties: {
+      directory_id: { type: 'string', description: 'Directory ID' },
+      locale: { type: 'string', description: "Extra language code (see list_languages) to read the hero title/subtitle, homepage content and labels as that language's translations" },
+    },
+  },
+  handler: async ({ directory_id, locale }) => {
+    const dir = resolveDirectory(directory_id);
+    const data = await api.get(`/directories/${dir}/theme${locale ? `?locale=${encodeURIComponent(locale)}` : ''}`);
+    return data.data || data;
+  },
+};
+
+export const updateTheme = {
+  name: 'update_theme',
+  description:
+    "Change a directory's theme — a partial update: send only the groups and keys to change; everything else keeps its value. Goes through the same save path as the Theme Editor's Save button and is live at once. Call get_theme first for the current values and the valid options. Switching `template` applies that template's preset brand colors (when it has one) and validates the rest of the request against the new template. `palette` sets all three brand colors at once; `brand` sets them individually (null clears one; -content text colors are derived). `custom_css_vars` merges DaisyUI vars (null removes one). Brand images are set from URLs in `media` (downloaded and stored; null removes). `template_settings` keys must be ones options.template_settings lists for the template. `translations` writes an extra language's hero texts, homepage content and labels. Returns the theme document after the change; use preview_theme to look at it.",
+  inputSchema: {
+    type: 'object',
+    properties: {
+      directory_id: { type: 'string', description: 'Directory ID' },
+      template: { type: 'string', description: 'Template to switch to (options.templates)' },
+      theme: { type: 'string', description: 'DaisyUI base theme (options.themes), e.g. light, dark, cupcake' },
+      palette: { type: 'string', description: 'Canned palette key: bold, pastel, mono, earthy, ocean' },
+      brand: { type: 'object', description: 'Brand colors; the matching -content text colors are derived', properties: { primary: COLOR_PROPERTY, secondary: COLOR_PROPERTY, accent: COLOR_PROPERTY } },
+      fonts: { type: 'object', properties: { body: { type: 'string', description: 'Font family (options.fonts)' }, heading: { type: ['string', 'null'], description: 'Heading font, weddings and members only; null = template default' } } },
+      dark_mode: { type: 'object', properties: { auto: { type: 'boolean' }, theme: { type: 'string', description: 'Theme used in dark mode' } } },
+      hero: {
+        type: 'object',
+        properties: {
+          title: { type: ['string', 'null'], description: 'Hero heading (the directory title)' },
+          subtitle: { type: ['string', 'null'], description: 'Text under the heading' },
+          show_category_search: { type: 'boolean' },
+          cover_image_opacity: { type: 'integer', minimum: 10, maximum: 100 },
+          layout: { type: 'object', additionalProperties: { type: ['string', 'null'] }, description: 'height, height_mobile, background_size, background_position, background_repeat, classes (modern); logo_size, logo_size_mobile, logo_classes' },
+          colors: { ...COLOR_MAP, description: 'Hero color overrides by key (see get_theme hero.colors)' },
+          media: {
+            type: 'object',
+            description: 'Hero background media (templates where options.hero_media_supported is true)',
+            properties: {
+              type: { type: 'string', enum: ['image', 'slideshow', 'video'] },
+              slideshow_interval: { type: 'integer', description: 'Seconds per slide: 3, 5, 8, 10 or 15' },
+              slides: { type: 'array', items: { type: ['string', 'null'] }, maxItems: 5, description: 'Up to 5 image URLs (replaces all slides)' },
+              video: {
+                type: 'object',
+                properties: {
+                  source: { type: 'string', enum: ['embed', 'upload'] },
+                  url: { type: ['string', 'null'], description: 'YouTube, Vimeo or direct .mp4/.webm URL' },
+                  muted: { type: 'boolean' },
+                  loop: { type: 'boolean' },
+                  sound_button: { type: 'boolean' },
+                  mobile_image: { type: 'boolean' },
+                },
+              },
+            },
+          },
+          collage: { type: 'object', additionalProperties: { type: ['string', 'null'] }, description: 'Weddings only: image_1 … image_4 URLs' },
+        },
+      },
+      buttons: { ...COLOR_MAP, description: 'Button colors: background, text, hover, border, border_hover' },
+      homepage: {
+        type: 'object',
+        properties: {
+          content: { type: ['string', 'null'], description: 'Rich content shown above the footer' },
+          top_categories: { type: 'boolean' },
+          category_count: { type: 'integer', description: '4, 8, 12 or 16' },
+          map: { type: 'boolean' },
+          map_placement: { type: 'string', enum: ['above_listings', 'below_listings'] },
+          sections: { type: 'array', items: { type: 'object', properties: { key: { type: 'string' }, enabled: { type: 'boolean' } }, required: ['key'] }, description: 'Ordered homepage sections (keys from options.sections)' },
+          section_spacing: { type: 'string', enum: ['compact', 'default', 'spacious'], description: 'Marketplace only' },
+          categories: { type: 'array', items: { type: 'object', properties: { id: { type: 'integer' }, enabled: { type: 'boolean' } }, required: ['id'] }, description: 'Modern only: curated category sections' },
+        },
+      },
+      footer: {
+        type: 'object',
+        properties: {
+          enabled: { type: 'boolean' },
+          hide_title: { type: 'boolean' },
+          show_browse_section: { type: 'boolean' },
+          show_custom_pages_section: { type: 'boolean' },
+          show_quick_links_section: { type: 'boolean' },
+          show_business_login_link: { type: 'boolean' },
+          show_business_login_link_header: { type: 'boolean' },
+          copyright_text: { type: ['string', 'null'] },
+          colors: { ...COLOR_MAP, description: 'background, text, heading, link_hover, border, copyright' },
+          sections: {
+            type: 'array',
+            description: 'Custom link columns (replaces all)',
+            items: {
+              type: 'object',
+              properties: {
+                title: { type: 'string' },
+                title_color: { type: ['string', 'null'] },
+                links: { type: 'array', items: { type: 'object', properties: { title: { type: 'string' }, url: { type: 'string' }, target: { type: 'string' }, color: { type: ['string', 'null'] }, hover_color: { type: ['string', 'null'] } }, required: ['title', 'url'] } },
+              },
+              required: ['title'],
+            },
+          },
+        },
+      },
+      media: {
+        type: 'object',
+        description: 'Brand images as public URLs; Directify downloads and stores a copy. null removes.',
+        properties: {
+          logo_url: { type: ['string', 'null'] },
+          favicon_url: { type: ['string', 'null'] },
+          cover_image_url: { type: ['string', 'null'], description: 'Templates where options.cover_image_supported is true' },
+          blog_cover_image_url: { type: ['string', 'null'], description: 'Modern only' },
+          footer_logo_url: { type: ['string', 'null'] },
+        },
+      },
+      template_settings: { type: 'object', additionalProperties: { type: ['boolean', 'string', 'null'] }, description: 'Per-template toggles and selects; keys and types from options.template_settings' },
+      labels: { type: 'object', additionalProperties: { type: 'object', additionalProperties: { type: ['string', 'null'] } }, description: 'Editable front-end labels by group and key (options.labels); null resets to the default' },
+      submitter_panel: {
+        type: 'object',
+        properties: {
+          dark_mode: { type: 'boolean' },
+          accent_color: { type: ['string', 'null'] },
+          custom_links: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, url: { type: 'string' }, new_tab: { type: 'boolean' } }, required: ['label', 'url'] } },
+          labels: { type: 'object', additionalProperties: { type: ['string', 'null'] }, description: 'Keys from options.submitter_labels' },
+        },
+      },
+      custom_css_vars: { type: 'object', additionalProperties: { type: ['string', 'null'] }, description: 'DaisyUI vars from options.custom_css_vars, e.g. {"--radius-box": "1.5rem"}; null removes' },
+      translations: {
+        type: 'object',
+        description: 'Per extra language code (see list_languages): hero title/subtitle, homepage content and labels in that language',
+        additionalProperties: {
+          type: 'object',
+          properties: {
+            hero: { type: 'object', properties: { title: { type: ['string', 'null'] }, subtitle: { type: ['string', 'null'] } } },
+            homepage: { type: 'object', properties: { content: { type: ['string', 'null'] } } },
+            labels: { type: 'object', additionalProperties: { type: 'object', additionalProperties: { type: ['string', 'null'] } } },
+          },
+        },
+      },
+    },
+  },
+  handler: async ({ directory_id, ...body }) => {
+    const dir = resolveDirectory(directory_id);
+    const data = await api.put(`/directories/${dir}/theme`, body);
+    const { options, ...theme } = data.data || data;
+    return theme;
+  },
+};
+
+export const previewTheme = {
+  name: 'preview_theme',
+  description:
+    "Take a screenshot of one of the directory's live pages so you can see the theme as a visitor does — use it after update_theme to check the result. Pages: home, browse, categories, category, listing, blog, map, submit (category/listing/blog need at least one record). Returns the image plus its URL. Limited to 20 captures per hour per account.",
+  inputSchema: {
+    type: 'object',
+    properties: {
+      directory_id: { type: 'string', description: 'Directory ID' },
+      page: { type: 'string', enum: ['home', 'browse', 'categories', 'category', 'listing', 'blog', 'map', 'submit'], description: 'Which page (default: home)' },
+      width: { type: 'integer', enum: [375, 768, 1280, 1440], description: 'Viewport width (default: 1280)' },
+      locale: { type: 'string', description: "Extra language code to capture that language's version" },
+    },
+  },
+  handler: async ({ directory_id, page, width, locale }) => {
+    const dir = resolveDirectory(directory_id);
+    const query = new URLSearchParams();
+    if (page) query.set('page', page);
+    if (width) query.set('width', String(width));
+    if (locale) query.set('locale', locale);
+    const qs = query.toString();
+    const data = await api.get(`/directories/${dir}/theme/preview${qs ? `?${qs}` : ''}`);
+    const capture = data.data || data;
+    const image = await fetch(capture.url);
+    if (!image.ok) {
+      throw new Error(`The screenshot could not be downloaded (HTTP ${image.status}).`);
+    }
+    const mimeType = (image.headers.get('content-type') || 'image/png').split(';')[0];
+    return {
+      content: [
+        { type: 'image', data: Buffer.from(await image.arrayBuffer()).toString('base64'), mimeType },
+        { type: 'text', text: JSON.stringify(capture, null, 2) },
+      ],
+    };
+  },
+};
+
 export const allTools = [
   listDirectories,
   listLanguages,
@@ -1247,4 +1439,7 @@ export const allTools = [
   createOrganizer,
   updateOrganizer,
   deleteOrganizer,
+  getTheme,
+  updateTheme,
+  previewTheme,
 ];
